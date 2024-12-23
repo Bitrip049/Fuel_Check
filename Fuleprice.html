@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Fuel Prices</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Live Fuel Price Comparisons</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Station Name</th>
+                    <th>E10</th>
+                    <th>Unleaded 91</th>
+                    <th>Premium 98</th>
+                    <th>Premium Diesel</th>
+                </tr>
+            </thead>
+            <tbody id="fuelTableBody">
+                <!-- Data will be populated dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const stationNames = {
+            "1842": "Reddy Fuels - Bundeena",
+            "1925": "BP Gymea",
+            "1926": "BP Kirrawee",
+            "1372": "Metro Jannali",
+            "945": "Ampol Heathcote",
+            "243": "7-Eleven Kirrawee",
+            "1413": "BP Engadine",
+            "233": "7-Eleven Gymea",
+            "162": "7-Eleven Sutherland"
+        };
+
+        // Helper function to calculate color based on price
+        function getPriceColor(price, minPrice, maxPrice) {
+            const percentage = (price - minPrice) / (maxPrice - minPrice);
+            const red = Math.min(255, Math.max(0, Math.round(percentage * 255)));
+            const green = Math.min(255, Math.max(0, Math.round((1 - percentage) * 255)));
+            return `rgb(${red}, ${green}, 0)`;
+        }
+
+        async function fetchFuelPrices() {
+            const tableBody = document.getElementById("fuelTableBody");
+            tableBody.innerHTML = "<tr><td colspan='5'>Loading...</td></tr>";
+
+            try {
+                const response = await fetch("http://127.0.0.1:5000/api/fuel-prices");
+                const data = await response.json();
+
+                tableBody.innerHTML = ""; // Clear loading text
+
+                // Find min and max prices for each fuel type
+                const minMax = { E10: [Infinity, -Infinity], U91: [Infinity, -Infinity], P98: [Infinity, -Infinity], PDL: [Infinity, -Infinity] };
+                data.forEach(row => {
+                    ["E10", "U91", "P98", "PDL"].forEach(fuelType => {
+                        if (row[fuelType] !== "N/A") {
+                            const price = parseFloat(row[fuelType]);
+                            minMax[fuelType][0] = Math.min(minMax[fuelType][0], price);
+                            minMax[fuelType][1] = Math.max(minMax[fuelType][1], price);
+                        }
+                    });
+                });
+
+                // Populate table with data and dynamic colors
+                data.forEach(row => {
+                    const tableRow = document.createElement("tr");
+
+                    const stationCode = row["Station Code"];
+                    const stationName = stationNames[stationCode] || "Unknown Station";
+
+                    tableRow.innerHTML = `
+                        <td>${stationName}</td>
+                        <td class="price" style="background-color: ${getPriceColor(parseFloat(row["E10"]), minMax.E10[0], minMax.E10[1])}">${row["E10"]}</td>
+                        <td class="price" style="background-color: ${getPriceColor(parseFloat(row["U91"]), minMax.U91[0], minMax.U91[1])}">${row["U91"]}</td>
+                        <td class="price" style="background-color: ${getPriceColor(parseFloat(row["P98"]), minMax.P98[0], minMax.P98[1])}">${row["P98"]}</td>
+                        <td class="price" style="background-color: ${getPriceColor(parseFloat(row["PDL"]), minMax.PDL[0], minMax.PDL[1])}">${row["PDL"]}</td>
+                    `;
+
+                    tableBody.appendChild(tableRow);
+                });
+            } catch (error) {
+                tableBody.innerHTML = `<tr><td colspan="5">Failed to load data</td></tr>`;
+                console.error("Error fetching fuel prices:", error);
+            }
+        }
+
+        // Call the function after page loads
+        window.onload = fetchFuelPrices;
+    </script>
+</body>
+</html>
